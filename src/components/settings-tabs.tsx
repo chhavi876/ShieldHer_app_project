@@ -1,5 +1,6 @@
 'use client';
 import Image from 'next/image';
+import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -10,6 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ShieldOff, Users, HeartHandshake, Smartphone, PlusCircle, Trash2, Home, Briefcase } from "lucide-react";
 import type { EmergencyContact, SafeZone, TrustedDevice } from '@/lib/types';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { useToast } from '@/hooks/use-toast';
 
 interface SettingsTabsProps {
   standbyMode: boolean;
@@ -32,6 +34,14 @@ export function SettingsTabs({
   trustedDevices,
   setTrustedDevices,
 }: SettingsTabsProps) {
+  const { toast } = useToast();
+  const [newContactName, setNewContactName] = useState('');
+  const [newContactPhone, setNewContactPhone] = useState('');
+  const [newZoneName, setNewZoneName] = useState('');
+  const [newZoneAddress, setNewZoneAddress] = useState('');
+  const [newDeviceName, setNewDeviceName] = useState('');
+  const [newDeviceOwner, setNewDeviceOwner] = useState('');
+
 
   const getImageUrl = (id: string) => {
     const img = PlaceHolderImages.find(p => p.id === id);
@@ -41,6 +51,72 @@ export function SettingsTabs({
     const img = PlaceHolderImages.find(p => p.id === id);
     return img ? img.imageHint : `person`;
   }
+
+  const handleAddContact = () => {
+    if (!newContactName || !newContactPhone) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Please enter a name and phone number.' });
+      return;
+    }
+    const newContact: EmergencyContact = {
+      id: (emergencyContacts.length + 1).toString(),
+      name: newContactName,
+      phone: newContactPhone,
+      avatar: (Math.floor(Math.random() * 1000)).toString(),
+    };
+    setEmergencyContacts([...emergencyContacts, newContact]);
+    setNewContactName('');
+    setNewContactPhone('');
+    toast({ title: 'Success', description: 'Emergency contact added.' });
+  };
+
+  const handleDeleteContact = (id: string) => {
+    setEmergencyContacts(emergencyContacts.filter(contact => contact.id !== id));
+    toast({ title: 'Success', description: 'Emergency contact removed.' });
+  };
+
+  const handleAddSafeZone = () => {
+    if (!newZoneName || !newZoneAddress) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Please enter a zone name and address.' });
+      return;
+    }
+    const newZone: SafeZone = {
+      id: (safeZones.length + 1).toString(),
+      name: newZoneName,
+      address: newZoneAddress,
+      icon: newZoneName.toLowerCase().includes('work') ? Briefcase : Home,
+    };
+    setSafeZones([...safeZones, newZone]);
+    setNewZoneName('');
+    setNewZoneAddress('');
+    toast({ title: 'Success', description: 'Safe zone added.' });
+  };
+
+  const handleDeleteSafeZone = (id: string) => {
+    setSafeZones(safeZones.filter(zone => zone.id !== id));
+    toast({ title: 'Success', description: 'Safe zone removed.' });
+  };
+
+  const handleAddTrustedDevice = () => {
+    if (!newDeviceName || !newDeviceOwner) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Please enter a device name and owner.' });
+      return;
+    }
+    const newDevice: TrustedDevice = {
+      id: (trustedDevices.length + 1).toString(),
+      name: newDeviceName,
+      owner: newDeviceOwner,
+    };
+    setTrustedDevices([...trustedDevices, newDevice]);
+    setNewDeviceName('');
+    setNewDeviceOwner('');
+    toast({ title: 'Success', description: 'Trusted device added.' });
+  };
+
+  const handleDeleteTrustedDevice = (id: string) => {
+    setTrustedDevices(trustedDevices.filter(device => device.id !== id));
+    toast({ title: 'Success', description: 'Trusted device removed.' });
+  };
+
 
   return (
     <Tabs defaultValue="standby" className="w-full">
@@ -88,13 +164,13 @@ export function SettingsTabs({
                     <p className="text-sm text-muted-foreground">{contact.phone}</p>
                   </div>
                 </div>
-                <Button variant="ghost" size="icon"><Trash2 className="h-4 w-4"/></Button>
+                <Button variant="ghost" size="icon" onClick={() => handleDeleteContact(contact.id)}><Trash2 className="h-4 w-4"/></Button>
               </div>
             ))}
              <div className="flex items-center space-x-2 pt-2">
-                <Input placeholder="New Contact Name" />
-                <Input placeholder="Phone Number" />
-                <Button><PlusCircle className="mr-2 h-4 w-4" /> Add</Button>
+                <Input placeholder="New Contact Name" value={newContactName} onChange={(e) => setNewContactName(e.target.value)} />
+                <Input placeholder="Phone Number" value={newContactPhone} onChange={(e) => setNewContactPhone(e.target.value)} />
+                <Button onClick={handleAddContact}><PlusCircle className="mr-2 h-4 w-4" /> Add</Button>
             </div>
           </CardContent>
         </Card>
@@ -117,13 +193,13 @@ export function SettingsTabs({
                     <p className="text-sm text-muted-foreground">{zone.address}</p>
                   </div>
                 </div>
-                 <Button variant="ghost" size="icon"><Trash2 className="h-4 w-4"/></Button>
+                 <Button variant="ghost" size="icon" onClick={() => handleDeleteSafeZone(zone.id)}><Trash2 className="h-4 w-4"/></Button>
               </div>
             ))}
              <div className="flex items-center space-x-2 pt-2">
-                <Input placeholder="Zone Name (e.g., Library)" />
-                <Input placeholder="Address" />
-                <Button><PlusCircle className="mr-2 h-4 w-4" /> Add</Button>
+                <Input placeholder="Zone Name (e.g., Library)" value={newZoneName} onChange={(e) => setNewZoneName(e.target.value)} />
+                <Input placeholder="Address" value={newZoneAddress} onChange={(e) => setNewZoneAddress(e.target.value)} />
+                <Button onClick={handleAddSafeZone}><PlusCircle className="mr-2 h-4 w-4" /> Add</Button>
             </div>
           </CardContent>
         </Card>
@@ -146,13 +222,13 @@ export function SettingsTabs({
                     <p className="text-sm text-muted-foreground">Owner: {device.owner}</p>
                   </div>
                 </div>
-                 <Button variant="ghost" size="icon"><Trash2 className="h-4 w-4"/></Button>
+                 <Button variant="ghost" size="icon" onClick={() => handleDeleteTrustedDevice(device.id)}><Trash2 className="h-4 w-4"/></Button>
               </div>
             ))}
              <div className="flex items-center space-x-2 pt-2">
-                <Input placeholder="Device Name (e.g., Alex's Pixel)" />
-                <Input placeholder="Owner's Name" />
-                <Button><PlusCircle className="mr-2 h-4 w-4" /> Add</Button>
+                <Input placeholder="Device Name (e.g., Alex's Pixel)" value={newDeviceName} onChange={(e) => setNewDeviceName(e.target.value)} />
+                <Input placeholder="Owner's Name" value={newDeviceOwner} onChange={(e) => setNewDeviceOwner(e.target.value)} />
+                <Button onClick={handleAddTrustedDevice}><PlusCircle className="mr-2 h-4 w-4" /> Add</Button>
             </div>
           </CardContent>
         </Card>
