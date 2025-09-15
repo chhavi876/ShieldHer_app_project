@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -287,7 +288,7 @@ export function Dashboard() {
              <CardDescription>
               Instantly trigger Shield Mode if you feel unsafe.
             </CardDescription>
-          </Header>
+          </CardHeader>
           <CardContent className="flex flex-col items-center justify-center h-full pb-6">
             <Button size="lg" variant="destructive" className="h-24 w-full text-2xl" onClick={() => setShieldModeActive(true)}>
               <ShieldAlert className="mr-4 h-8 w-8" />
@@ -300,3 +301,5 @@ export function Dashboard() {
     </>
   );
 }
+
+    

@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2, ShieldAlert, Siren, FileVideo, MessageSquareWarning, CheckCircle2, Mic } from 'lucide-react';
+import { Loader2, ShieldAlert, Siren, FileVideo, MessageSquareWarning, CheckCircle2 } from 'lucide-react';
 import * as Tone from 'tone';
 import { sendAlertToContacts } from '@/ai/flows/send-alert-to-contacts';
 import type { SensorData, EmergencyContact, Evidence } from '@/lib/types';
@@ -103,7 +103,13 @@ export function ShieldModeOverlay({ sensorData, emergencyContacts, onDeactivate 
         });
       } else {
          await new Promise(resolve => setTimeout(resolve, CAPTURE_DURATION));
+         // Provide placeholder empty data URIs if recording fails
          evidence = { video: 'data:video/webm;base64,', audio: 'data:audio/webm;base64,' };
+         toast({
+          variant: 'destructive',
+          title: 'Evidence Capture Failed',
+          description: hasCameraPermission === false ? 'Camera/Mic permissions were denied.' : 'Could not start media recorder.',
+        });
       }
       
       capturedEvidenceRef.current = evidence;
@@ -150,7 +156,7 @@ export function ShieldModeOverlay({ sensorData, emergencyContacts, onDeactivate 
         // Tone.context.dispose(); // This causes issues on fast-re-renders
       }
     }
-  }, [isSequenceRunning, sensorData, emergencyContacts, toast]);
+  }, [isSequenceRunning, sensorData, emergencyContacts, toast, hasCameraPermission]);
   
   const toggleSiren = async () => {
     if (Tone.context.state !== 'running') {
@@ -244,3 +250,5 @@ export function ShieldModeOverlay({ sensorData, emergencyContacts, onDeactivate 
     </div>
   );
 }
+
+    
