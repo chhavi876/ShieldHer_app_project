@@ -44,9 +44,9 @@ const prompt = ai.definePrompt({
   name: 'sendAlertToContactsPrompt',
   input: { schema: SendAlertToContactsInputSchema },
   output: { schema: SendAlertToContactsOutputSchema },
-  prompt: `You are an AI assistant for Guardian Angel, a personal safety app. Your task is to generate a detailed emergency alert message based on an incident.
+  prompt: `You are an AI assistant for ShieldHer, a personal safety app. Your task is to generate a detailed emergency alert message based on an incident.
 
-The message should be clear, and provide actionable information. Start with a clear warning like "Guardian Angel Alert for your loved one".
+The message should be clear, and provide actionable information. Start with a clear warning like "ShieldHer Alert for your loved one".
 
 Incorporate the following data:
 - Acoustic Signature: {{{sensorData.acousticSignature}}}
