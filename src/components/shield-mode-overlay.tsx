@@ -30,7 +30,8 @@ export function ShieldModeOverlay({ sensorData, emergencyContacts, onDeactivate 
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
-  const [capturedEvidence, setCapturedEvidence] = useState<Evidence | null>(null);
+  const capturedEvidenceRef = useRef<Evidence | null>(null);
+  const [isSequenceRunning, setIsSequenceRunning] = useState(false);
 
 
   useEffect(() => {
@@ -64,102 +65,92 @@ export function ShieldModeOverlay({ sensorData, emergencyContacts, onDeactivate 
   }, [toast]);
 
   useEffect(() => {
+    if (isSequenceRunning) return;
+    
     const runSequence = async () => {
+      setIsSequenceRunning(true);
       // 1. Evidence Capture
       setStage('capturing');
+      
+      let evidence: Evidence;
+
       if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'inactive') {
         const videoChunks: Blob[] = [];
-        const audioChunks: Blob[] = []; // We'll handle audio separately if needed, but it's in the video stream
-
+        
         mediaRecorderRef.current.ondataavailable = (event) => {
           if (event.data.size > 0) {
             videoChunks.push(event.data);
           }
         };
 
+        const stopRecording = new Promise<void>(resolve => {
+           mediaRecorderRef.current!.onstop = () => resolve();
+        });
+
         mediaRecorderRef.current.start();
         await new Promise(resolve => setTimeout(resolve, CAPTURE_DURATION));
         mediaRecorderRef.current.stop();
+        await stopRecording;
 
-        mediaRecorderRef.current.onstop = () => {
-          const videoBlob = new Blob(videoChunks, { type: 'video/webm' });
-          const reader = new FileReader();
-          reader.readAsDataURL(videoBlob);
+        const videoBlob = new Blob(videoChunks, { type: 'video/webm' });
+        const reader = new FileReader();
+        evidence = await new Promise<Evidence>(resolve => {
           reader.onloadend = () => {
             const base64Video = reader.result as string;
-            // For simplicity, we'll reuse the video which contains the audio track.
-            // A more complex implementation could separate them.
-            setCapturedEvidence({ video: base64Video, audio: base64Video }); 
+            resolve({ video: base64Video, audio: base64Video });
           };
-        };
+          reader.readAsDataURL(videoBlob);
+        });
       } else {
          await new Promise(resolve => setTimeout(resolve, CAPTURE_DURATION));
-         // Set dummy evidence if permission was denied
-         setCapturedEvidence({ video: 'data:video/webm;base64,', audio: 'data:audio/webm;base64,' });
+         evidence = { video: 'data:video/webm;base64,', audio: 'data:audio/webm;base64,' };
       }
       
-      // Wait for evidence processing to complete
-      await new Promise(resolve => {
-        const interval = setInterval(() => {
-          if (capturedEvidence) {
-            clearInterval(interval);
-            resolve(true);
-          }
-        }, 100);
-      });
+      capturedEvidenceRef.current = evidence;
+
+      // 2. AI Analysis & Alerting
+      setStage('analyzing');
+      try {
+          const result = await sendAlertToContacts({
+              sensorData,
+              evidence: capturedEvidenceRef.current,
+              emergencyContacts,
+          });
+          setSummary(result.message);
+          toast({
+            title: 'Alerts Sent',
+            description: `Notified: ${result.sentTo.join(', ')}`,
+          });
+      } catch (error) {
+          console.error('AI alert failed:', error);
+          setSummary('Could not generate AI summary. Alerting with raw data.');
+          toast({
+              variant: 'destructive',
+              title: 'AI Analysis Error',
+              description: 'Failed to generate the incident alert message.',
+          });
+      }
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // 3. Alerting Stage Display
+      setStage('alerting');
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      // 4. Active
+      setStage('active');
+      setIsLoading(false);
     };
 
     runSequence();
-  }, [hasCameraPermission]); // Rerun if permission changes
-
-
-  useEffect(() => {
-    if (!capturedEvidence) return;
-
-    const runAlertSequence = async () => {
-        // 2. AI Analysis & Alerting
-        setStage('analyzing');
-        try {
-            const result = await sendAlertToContacts({
-                sensorData,
-                evidence: capturedEvidence,
-                emergencyContacts,
-            });
-            setSummary(result.message);
-            toast({
-              title: 'Alerts Sent',
-              description: `Notified: ${result.sentTo.join(', ')}`,
-            });
-        } catch (error) {
-            console.error('AI alert failed:', error);
-            setSummary('Could not generate AI summary. Alerting with raw data.');
-            toast({
-                variant: 'destructive',
-                title: 'AI Analysis Error',
-                description: 'Failed to generate the incident alert message.',
-            });
-        }
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        // 3. Alerting Stage Display
-        setStage('alerting');
-        await new Promise(resolve => setTimeout(resolve, 1500));
-
-        // 4. Active
-        setStage('active');
-        setIsLoading(false);
-    };
-
-    runAlertSequence();
 
     // Cleanup Tone.js context on unmount
     return () => {
       sirenRef.current?.stop().dispose();
       if(Tone.context.state === 'running') {
-        Tone.context.dispose();
+        // Tone.context.dispose(); // This causes issues on fast-re-renders
       }
     }
-  }, [capturedEvidence, sensorData, emergencyContacts, toast]);
+  }, [isSequenceRunning, sensorData, emergencyContacts, toast]);
   
   const toggleSiren = async () => {
     if (Tone.context.state !== 'running') {
