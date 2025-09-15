@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useRef } from 'react';
@@ -107,7 +108,7 @@ export function ShieldModeOverlay({ sensorData, emergencyContacts, onDeactivate 
         }
       } 
       
-      if (!evidence) {
+      if (!evidence || !evidence.video) {
          await new Promise(resolve => setTimeout(resolve, CAPTURE_DURATION));
          evidence = { video: '' };
          toast({
@@ -117,7 +118,7 @@ export function ShieldModeOverlay({ sensorData, emergencyContacts, onDeactivate 
         });
       }
       
-      capturedEvidenceRef.current = { ...evidence, audio: '' }; // Audio not sent
+      capturedEvidenceRef.current = { ...evidence, audio: '' };
 
       // 2. AI Analysis & Alerting
       setStage('analyzing');
@@ -131,8 +132,8 @@ export function ShieldModeOverlay({ sensorData, emergencyContacts, onDeactivate 
           });
           setSummary(result.message);
           toast({
-            title: 'Alerts Sent',
-            description: `Notified: ${result.sentTo.join(', ')}`,
+            title: 'Alert Simulation',
+            description: `(Simulated) Alert sent to: ${result.sentTo.join(', ')}`,
           });
       } catch (error) {
           console.error('AI alert failed:', error);
