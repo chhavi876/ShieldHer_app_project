@@ -20,7 +20,7 @@ const SendAlertToContactsInputSchema = z.object({
   }),
   evidence: z.object({
     video: z.string().describe("A data URI of a short video clip of the incident. Must be a data URI with a MIME type and Base64 encoding, e.g., 'data:<mimetype>;base64,<encoded_data>'."),
-    audio: z.string().describe("A data URI of a short audio clip of the incident. Must be a data URI with a MIME type and Base64 encoding, e.g., 'data:<mimetype>;base64,<encoded_data>'."),
+    audio: z.string().describe("A data URI of a short audio clip of the incident. This is for reference and not sent to the model. Must be a data URI with a MIME type and Base64 encoding, e.g., 'data:<mimetype>;base64,<encoded_data>'."),
   }),
   emergencyContacts: z.array(z.object({
     id: z.string(),
@@ -56,9 +56,8 @@ Incorporate the following data:
 - Safe Zone: {{{sensorData.safeZoneStatus}}}
 - Trusted Devices Nearby: {{#if sensorData.trustedDevicesPresent}}Yes{{else}}No{{/if}}
 
-Based on the video and audio, briefly describe what is happening.
+Based on the video, briefly describe what is happening.
 Video: {{media url=evidence.video}}
-Audio: {{media url=evidence.audio}}
 
 Finally, create a JSON object with two keys:
 1.  "message": The full alert text.
@@ -96,5 +95,3 @@ const sendAlertToContactsFlow = ai.defineFlow(
     return alertResult;
   }
 );
-
-    
