@@ -1,3 +1,4 @@
+
 {
   "placeholderImages": [
     {
@@ -11,6 +12,18 @@
       "description": "A portrait of a man.",
       "imageUrl": "https://picsum.photos/seed/2/40/40",
       "imageHint": "man portrait"
+    },
+    {
+      "id": "3",
+      "description": "A portrait of an Indian woman.",
+      "imageUrl": "https://picsum.photos/seed/3/40/40",
+      "imageHint": "indian woman"
+    },
+    {
+      "id": "4",
+      "description": "A portrait of an Indian woman.",
+      "imageUrl": "https://picsum.photos/seed/4/40/40",
+      "imageHint": "indian woman"
     }
   ]
 }

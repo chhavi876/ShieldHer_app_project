@@ -38,8 +38,8 @@ export function Dashboard() {
   });
 
   const [emergencyContacts, setEmergencyContacts] = useState<EmergencyContact[]>([
-    { id: '1', name: 'Jane Doe', phone: '555-1234', avatar: '1' },
-    { id: '2', name: 'John Smith', phone: '555-5678', avatar: '2' },
+    { id: '3', name: 'Chhavi', phone: '+919876543210', avatar: '3' },
+    { id: '4', name: 'Gauri', phone: '+919876543211', avatar: '4' },
   ]);
   const [safeZones, setSafeZones] = useState<SafeZone[]>([
     { id: '1', name: 'Home', address: '123 Main St, Anytown', icon: Home },
@@ -301,5 +301,3 @@ export function Dashboard() {
     </>
   );
 }
-
-    
