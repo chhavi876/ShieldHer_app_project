@@ -19,7 +19,7 @@ const SendAlertToContactsInputSchema = z.object({
     safeZoneStatus: z.string().describe('The status of the location relative to safe zones.'),
   }),
   evidence: z.object({
-    video: z.string().describe("A data URI of a short video clip of the incident. Must be a data URI with a MIME type and Base64 encoding, e.g., 'data:<mimetype>;base64,<encoded_data>'."),
+    video: z.string().describe("A data URI of a short video clip of the incident. Can be empty if capture failed. Must be a data URI with a MIME type and Base64 encoding, e.g., 'data:<mimetype>;base64,<encoded_data>'."),
     audio: z.string().describe("A data URI of a short audio clip of the incident. This is for reference and not sent to the model. Must be a data URI with a MIME type and Base64 encoding, e.g., 'data:<mimetype>;base64,<encoded_data>'."),
   }),
   emergencyContacts: z.array(z.object({
@@ -56,8 +56,12 @@ Incorporate the following data:
 - Safe Zone: {{{sensorData.safeZoneStatus}}}
 - Trusted Devices Nearby: {{#if sensorData.trustedDevicesPresent}}Yes{{else}}No{{/if}}
 
+{{#if evidence.video}}
 Based on the video, briefly describe what is happening.
 Video: {{media url=evidence.video}}
+{{else}}
+Video evidence could not be captured.
+{{/if}}
 
 Finally, create a JSON object with two keys:
 1.  "message": The full alert text.

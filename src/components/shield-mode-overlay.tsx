@@ -72,9 +72,9 @@ export function ShieldModeOverlay({ sensorData, emergencyContacts, onDeactivate 
       // 1. Evidence Capture
       setStage('capturing');
       
-      let evidence: Evidence;
+      let evidence: Evidence | null = null;
 
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'inactive') {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'inactive' && hasCameraPermission) {
         const videoChunks: Blob[] = [];
         
         mediaRecorderRef.current.ondataavailable = (event) => {
@@ -89,22 +89,28 @@ export function ShieldModeOverlay({ sensorData, emergencyContacts, onDeactivate 
 
         mediaRecorderRef.current.start();
         await new Promise(resolve => setTimeout(resolve, CAPTURE_DURATION));
-        mediaRecorderRef.current.stop();
+        if (mediaRecorderRef.current.state === 'recording') {
+            mediaRecorderRef.current.stop();
+        }
         await stopRecording;
-
-        const videoBlob = new Blob(videoChunks, { type: 'video/webm' });
-        const reader = new FileReader();
-        evidence = await new Promise<Evidence>(resolve => {
-          reader.onloadend = () => {
-            const base64Video = reader.result as string;
-            resolve({ video: base64Video, audio: base64Video });
-          };
-          reader.readAsDataURL(videoBlob);
-        });
-      } else {
+        
+        if (videoChunks.length > 0) {
+            const videoBlob = new Blob(videoChunks, { type: 'video/webm' });
+            const reader = new FileReader();
+            evidence = await new Promise<Evidence>(resolve => {
+              reader.onloadend = () => {
+                const base64Video = reader.result as string;
+                resolve({ video: base64Video, audio: base64Video });
+              };
+              reader.readAsDataURL(videoBlob);
+            });
+        }
+      } 
+      
+      if (!evidence) {
          await new Promise(resolve => setTimeout(resolve, CAPTURE_DURATION));
          // Provide placeholder empty data URIs if recording fails
-         evidence = { video: 'data:video/webm;base64,', audio: 'data:audio/webm;base64,' };
+         evidence = { video: '', audio: '' };
          toast({
           variant: 'destructive',
           title: 'Evidence Capture Failed',
@@ -117,9 +123,12 @@ export function ShieldModeOverlay({ sensorData, emergencyContacts, onDeactivate 
       // 2. AI Analysis & Alerting
       setStage('analyzing');
       try {
+          // Only send evidence if it's not empty
+          const evidenceToSend = capturedEvidenceRef.current.video ? capturedEvidenceRef.current : { video: '', audio: ''};
+
           const result = await sendAlertToContacts({
               sensorData,
-              evidence: capturedEvidenceRef.current,
+              evidence: evidenceToSend,
               emergencyContacts,
           });
           setSummary(result.message);
@@ -152,9 +161,6 @@ export function ShieldModeOverlay({ sensorData, emergencyContacts, onDeactivate 
     // Cleanup Tone.js context on unmount
     return () => {
       sirenRef.current?.stop().dispose();
-      if(Tone.context.state === 'running') {
-        // Tone.context.dispose(); // This causes issues on fast-re-renders
-      }
     }
   }, [isSequenceRunning, sensorData, emergencyContacts, toast, hasCameraPermission]);
   
@@ -250,5 +256,3 @@ export function ShieldModeOverlay({ sensorData, emergencyContacts, onDeactivate 
     </div>
   );
 }
-
-    
