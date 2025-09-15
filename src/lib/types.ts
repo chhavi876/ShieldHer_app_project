@@ -27,3 +27,8 @@ export interface SensorData {
   trustedDevicesPresent: boolean;
   safeZoneStatus: string;
 }
+
+export interface Evidence {
+  video: string; // base64 data URI
+  audio: string; // base64 data URI
+}

@@ -2,66 +2,164 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { Loader2, ShieldAlert, Siren, FileVideo, MessageSquareWarning, CheckCircle2 } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Loader2, ShieldAlert, Siren, FileVideo, MessageSquareWarning, CheckCircle2, Mic } from 'lucide-react';
 import * as Tone from 'tone';
-import { summarizeIncidentForContacts } from '@/ai/flows/summarize-incident-for-contacts';
-import type { SensorData } from '@/lib/types';
+import { sendAlertToContacts } from '@/ai/flows/send-alert-to-contacts';
+import type { SensorData, EmergencyContact, Evidence } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 
 interface ShieldModeOverlayProps {
   sensorData: SensorData;
+  emergencyContacts: EmergencyContact[];
   onDeactivate: () => void;
 }
 
 type Stage = 'initializing' | 'capturing' | 'analyzing' | 'alerting' | 'active';
 
-export function ShieldModeOverlay({ sensorData, onDeactivate }: ShieldModeOverlayProps) {
+const CAPTURE_DURATION = 5000; // 5 seconds
+
+export function ShieldModeOverlay({ sensorData, emergencyContacts, onDeactivate }: ShieldModeOverlayProps) {
   const [summary, setSummary] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [stage, setStage] = useState<Stage>('initializing');
   const sirenRef = useRef<Tone.Loop | null>(null);
   const [isSirenOn, setIsSirenOn] = useState(false);
   const { toast } = useToast();
+  
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  const [capturedEvidence, setCapturedEvidence] = useState<Evidence | null>(null);
+
+
+  useEffect(() => {
+    const getCameraPermission = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        setHasCameraPermission(true);
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+        
+        mediaRecorderRef.current = new MediaRecorder(stream, { mimeType: 'video/webm' });
+
+      } catch (error) {
+        console.error('Error accessing camera/mic:', error);
+        setHasCameraPermission(false);
+        toast({
+          variant: 'destructive',
+          title: 'Camera & Mic Access Denied',
+          description: 'Please enable permissions to capture evidence.',
+        });
+      }
+    };
+
+    getCameraPermission();
+
+    return () => {
+      mediaRecorderRef.current?.stream.getTracks().forEach(track => track.stop());
+    }
+  }, [toast]);
 
   useEffect(() => {
     const runSequence = async () => {
       // 1. Evidence Capture
       setStage('capturing');
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // 2. AI Analysis
-      setStage('analyzing');
-      try {
-        const result = await summarizeIncidentForContacts(sensorData);
-        setSummary(result.summary);
-      } catch (error) {
-        console.error('AI summary failed:', error);
-        setSummary('Could not generate AI summary. Alerting with raw data.');
-        toast({
-          variant: 'destructive',
-          title: 'AI Analysis Error',
-          description: 'Failed to generate the incident summary.',
-        });
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'inactive') {
+        const videoChunks: Blob[] = [];
+        const audioChunks: Blob[] = []; // We'll handle audio separately if needed, but it's in the video stream
+
+        mediaRecorderRef.current.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            videoChunks.push(event.data);
+          }
+        };
+
+        mediaRecorderRef.current.start();
+        await new Promise(resolve => setTimeout(resolve, CAPTURE_DURATION));
+        mediaRecorderRef.current.stop();
+
+        mediaRecorderRef.current.onstop = () => {
+          const videoBlob = new Blob(videoChunks, { type: 'video/webm' });
+          const reader = new FileReader();
+          reader.readAsDataURL(videoBlob);
+          reader.onloadend = () => {
+            const base64Video = reader.result as string;
+            // For simplicity, we'll reuse the video which contains the audio track.
+            // A more complex implementation could separate them.
+            setCapturedEvidence({ video: base64Video, audio: base64Video }); 
+          };
+        };
+      } else {
+         await new Promise(resolve => setTimeout(resolve, CAPTURE_DURATION));
+         // Set dummy evidence if permission was denied
+         setCapturedEvidence({ video: 'data:video/webm;base64,', audio: 'data:audio/webm;base64,' });
       }
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // 3. Alerting
-      setStage('alerting');
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      // 4. Active
-      setStage('active');
-      setIsLoading(false);
+      
+      // Wait for evidence processing to complete
+      await new Promise(resolve => {
+        const interval = setInterval(() => {
+          if (capturedEvidence) {
+            clearInterval(interval);
+            resolve(true);
+          }
+        }, 100);
+      });
     };
 
     runSequence();
-    
+  }, [hasCameraPermission]); // Rerun if permission changes
+
+
+  useEffect(() => {
+    if (!capturedEvidence) return;
+
+    const runAlertSequence = async () => {
+        // 2. AI Analysis & Alerting
+        setStage('analyzing');
+        try {
+            const result = await sendAlertToContacts({
+                sensorData,
+                evidence: capturedEvidence,
+                emergencyContacts,
+            });
+            setSummary(result.message);
+            toast({
+              title: 'Alerts Sent',
+              description: `Notified: ${result.sentTo.join(', ')}`,
+            });
+        } catch (error) {
+            console.error('AI alert failed:', error);
+            setSummary('Could not generate AI summary. Alerting with raw data.');
+            toast({
+                variant: 'destructive',
+                title: 'AI Analysis Error',
+                description: 'Failed to generate the incident alert message.',
+            });
+        }
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // 3. Alerting Stage Display
+        setStage('alerting');
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        // 4. Active
+        setStage('active');
+        setIsLoading(false);
+    };
+
+    runAlertSequence();
+
     // Cleanup Tone.js context on unmount
     return () => {
       sirenRef.current?.stop().dispose();
-      Tone.context.dispose();
+      if(Tone.context.state === 'running') {
+        Tone.context.dispose();
+      }
     }
-  }, [sensorData, toast]);
+  }, [capturedEvidence, sensorData, emergencyContacts, toast]);
   
   const toggleSiren = async () => {
     if (Tone.context.state !== 'running') {
@@ -87,9 +185,9 @@ export function ShieldModeOverlay({ sensorData, onDeactivate }: ShieldModeOverla
 
   const stageInfo = {
     initializing: { icon: <Loader2 className="h-6 w-6 animate-spin" />, text: 'Initializing Shield Mode...' },
-    capturing: { icon: <FileVideo className="h-6 w-6" />, text: 'Capturing video evidence...' },
+    capturing: { icon: <FileVideo className="h-6 w-6" />, text: 'Capturing video & audio evidence...' },
     analyzing: { icon: <Loader2 className="h-6 w-6 animate-spin" />, text: 'AI analyzing incident...' },
-    alerting: { icon: <MessageSquareWarning className="h-6 w-6" />, text: 'Alerting emergency contacts...' },
+    alerting: { icon: <MessageSquareWarning className="h-6 w-6" />, text: 'Sending AI-powered alerts...' },
     active: { icon: <CheckCircle2 className="h-6 w-6 text-green-400" />, text: 'Shield Mode is Active. Alerts Sent.' },
   };
 
@@ -101,19 +199,35 @@ export function ShieldModeOverlay({ sensorData, onDeactivate }: ShieldModeOverla
         <p className="mt-2 text-xl opacity-90">A potential threat has been detected.</p>
       </div>
 
-      <div className="mt-12 w-full max-w-2xl rounded-lg bg-black/50 p-6 backdrop-blur-sm">
-        <h2 className="text-lg font-semibold text-center mb-4">Response Protocol Status</h2>
-        <div className="flex items-center justify-center gap-4 text-xl font-medium">
-          {stageInfo[stage].icon}
-          <p>{stageInfo[stage].text}</p>
-        </div>
+      <div className="mt-12 w-full max-w-3xl rounded-lg bg-black/50 p-6 backdrop-blur-sm">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+            <div>
+              <h2 className="text-lg font-semibold text-center mb-4">Live Evidence Capture</h2>
+              <video ref={videoRef} className="w-full aspect-video rounded-md bg-black" autoPlay muted playsInline />
+              {hasCameraPermission === false && (
+                  <Alert variant="destructive" className="mt-2">
+                      <AlertTitle>Camera Access Denied</AlertTitle>
+                      <AlertDescription>
+                          Evidence capture is disabled.
+                      </AlertDescription>
+                  </Alert>
+              )}
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-center mb-4">Response Protocol Status</h2>
+              <div className="flex items-center justify-center gap-4 text-xl font-medium">
+                {stageInfo[stage].icon}
+                <p>{stageInfo[stage].text}</p>
+              </div>
 
-        {summary && (
-          <div className="mt-4 rounded-md border border-white/20 bg-white/10 p-4">
-            <p className="text-sm font-semibold opacity-80">AI-Generated Summary for Contacts:</p>
-            <p className="italic">"{summary}"</p>
-          </div>
-        )}
+              {summary && (
+                <div className="mt-4 rounded-md border border-white/20 bg-white/10 p-4 max-h-48 overflow-y-auto">
+                  <p className="text-sm font-semibold opacity-80">AI-Generated Message Sent to Contacts:</p>
+                  <p className="italic">"{summary}"</p>
+                </div>
+              )}
+            </div>
+        </div>
       </div>
 
       <div className="mt-12 flex flex-col sm:flex-row gap-6">
