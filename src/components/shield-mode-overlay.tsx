@@ -72,7 +72,7 @@ export function ShieldModeOverlay({ sensorData, emergencyContacts, onDeactivate 
       // 1. Evidence Capture
       setStage('capturing');
       
-      let evidence: Evidence | null = null;
+      let evidence: { video: string; } | null = null;
 
       if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'inactive' && hasCameraPermission) {
         const videoChunks: Blob[] = [];
@@ -97,10 +97,10 @@ export function ShieldModeOverlay({ sensorData, emergencyContacts, onDeactivate 
         if (videoChunks.length > 0) {
             const videoBlob = new Blob(videoChunks, { type: 'video/webm' });
             const reader = new FileReader();
-            evidence = await new Promise<Evidence>(resolve => {
+            evidence = await new Promise<{ video: string }>(resolve => {
               reader.onloadend = () => {
                 const base64Video = reader.result as string;
-                resolve({ video: base64Video, audio: base64Video });
+                resolve({ video: base64Video });
               };
               reader.readAsDataURL(videoBlob);
             });
@@ -109,8 +109,7 @@ export function ShieldModeOverlay({ sensorData, emergencyContacts, onDeactivate 
       
       if (!evidence) {
          await new Promise(resolve => setTimeout(resolve, CAPTURE_DURATION));
-         // Provide placeholder empty data URIs if recording fails
-         evidence = { video: '', audio: '' };
+         evidence = { video: '' };
          toast({
           variant: 'destructive',
           title: 'Evidence Capture Failed',
@@ -118,13 +117,12 @@ export function ShieldModeOverlay({ sensorData, emergencyContacts, onDeactivate 
         });
       }
       
-      capturedEvidenceRef.current = evidence;
+      capturedEvidenceRef.current = { ...evidence, audio: '' }; // Audio not sent
 
       // 2. AI Analysis & Alerting
       setStage('analyzing');
       try {
-          // Only send evidence if it's not empty
-          const evidenceToSend = capturedEvidenceRef.current.video ? capturedEvidenceRef.current : { video: '', audio: ''};
+          const evidenceToSend = capturedEvidenceRef.current.video ? { video: capturedEvidenceRef.current.video } : { video: ''};
 
           const result = await sendAlertToContacts({
               sensorData,
@@ -188,7 +186,7 @@ export function ShieldModeOverlay({ sensorData, emergencyContacts, onDeactivate 
 
   const stageInfo = {
     initializing: { icon: <Loader2 className="h-6 w-6 animate-spin" />, text: 'Initializing Shield Mode...' },
-    capturing: { icon: <FileVideo className="h-6 w-6" />, text: 'Capturing video & audio evidence...' },
+    capturing: { icon: <FileVideo className="h-6 w-6" />, text: 'Capturing video evidence...' },
     analyzing: { icon: <Loader2 className="h-6 w-6 animate-spin" />, text: 'AI analyzing incident...' },
     alerting: { icon: <MessageSquareWarning className="h-6 w-6" />, text: 'Sending AI-powered alerts...' },
     active: { icon: <CheckCircle2 className="h-6 w-6 text-green-400" />, text: 'Shield Mode is Active. Alerts Sent.' },

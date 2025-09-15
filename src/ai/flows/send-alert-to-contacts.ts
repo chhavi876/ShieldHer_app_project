@@ -20,7 +20,6 @@ const SendAlertToContactsInputSchema = z.object({
   }),
   evidence: z.object({
     video: z.string().describe("A data URI of a short video clip of the incident. Can be empty if capture failed. Must be a data URI with a MIME type and Base64 encoding, e.g., 'data:<mimetype>;base64,<encoded_data>'."),
-    audio: z.string().describe("A data URI of a short audio clip of the incident. This is for reference and not sent to the model. Must be a data URI with a MIME type and Base64 encoding, e.g., 'data:<mimetype>;base64,<encoded_data>'."),
   }),
   emergencyContacts: z.array(z.object({
     id: z.string(),
@@ -47,7 +46,7 @@ const prompt = ai.definePrompt({
   output: { schema: SendAlertToContactsOutputSchema },
   prompt: `You are an AI assistant for Guardian Angel, a personal safety app. Your task is to generate a detailed emergency alert message based on an incident.
 
-The message should be clear, and provide actionable information. Start with a clear warning like "Guardian Angel Alert for [User's Name]". Since we don't have the user's name, use "your loved one".
+The message should be clear, and provide actionable information. Start with a clear warning like "Guardian Angel Alert for your loved one".
 
 Incorporate the following data:
 - Acoustic Signature: {{{sensorData.acousticSignature}}}
@@ -57,7 +56,7 @@ Incorporate the following data:
 - Trusted Devices Nearby: {{#if sensorData.trustedDevicesPresent}}Yes{{else}}No{{/if}}
 
 {{#if evidence.video}}
-Based on the video, briefly describe what is happening.
+Analyze the provided video for any signs of distress or danger. Briefly describe what is happening in the video. If you are unable to analyze the video, state that video analysis failed but continue generating the rest of the alert.
 Video: {{media url=evidence.video}}
 {{else}}
 Video evidence could not be captured.

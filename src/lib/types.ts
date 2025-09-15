@@ -30,5 +30,5 @@ export interface SensorData {
 
 export interface Evidence {
   video: string; // base64 data URI
-  audio: string; // base64 data URI
+  audio: string; // base64 data URI - not sent to model
 }
